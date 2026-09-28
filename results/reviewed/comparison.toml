@@ -1,0 +1,20 @@
+comparisons = 2236
+elapsed_seconds = 1.006868839263916
+julia_version = "1.12.5"
+max_absolute_difference = 4.056769547844397e-6
+max_relative_difference = 1.5976138315686357e-6
+regenerated = true
+relative_error = "abs(actual-expected)/max(abs(actual),abs(expected)); zero for two zeros"
+scope = "Deterministic synthetic data; numerical validation, not proofs or coverage certification"
+status = "passed"
+
+[fixture_sha256]
+"observations.csv" = "41cda497846452e6d086bc62e59488e49be359228b95b68769ee0f56835b4511"
+"python_fit.csv" = "50c621fe860d76bf3e14d69c61b0e4c14ade5c3e93410b9a466d1889e332be59"
+"python_information.csv" = "b9e193fff27c7eee762d10a605ef29cb98243259662665c7f76d7e9885e97ac0"
+"python_profile.csv" = "19a88f3226569bb54689c345018af57a8a2900cd847645a1c2e06528df964f83"
+"python_transition.csv" = "a8876236b7ace406832c7ce2e30e816f8c35a762bff4d0f57cd671bd3e699506"
+"r/r_direct_nuisance.csv" = "fb3ee646bba90ba0145301901ff272fedc1eeb51db12dbb0a7cd7627db492036"
+"r/r_information.csv" = "fe09e2cd3f97b93a66ac88f3a16057c58d4a4ab23c90d9ce0b5236ea85888f44"
+"r/r_profile.csv" = "e7c8d1fe671ac13a3d0dc577e7465024476598c6b196eb75db6af2e2b0c4e85b"
+"r/r_transition.csv" = "c3340b02291190c0ed12945c068a7e314ea0e0c108621ec60f13456c8e0a733a"

@@ -1,0 +1,44 @@
+{
+  "purpose": "Deterministic synthetic regression fixtures; no observed or coursework data",
+  "frozen_core_sha256": "2c728d16c26d94ecf3e4b9308d41e51adab973a607b9f78c8413b9ea51bd6a61",
+  "python_version": "3.12.9",
+  "numpy_version": "2.3.5",
+  "scipy_version": "1.17.0",
+  "simulation_parameters": {
+    "kappa": 0.2,
+    "a": 0.3,
+    "sigma": 0.7,
+    "x0": -0.4
+  },
+  "random_seed": null,
+  "innovation_policy": "Explicit fixed innovations; cross-language RNG streams need not match",
+  "tolerances_fixed_before_comparison": {
+    "closed_form": {
+      "atol": 1e-10,
+      "rtol": 1e-10
+    },
+    "bounded_fit_objective_and_lr": {
+      "atol": 1e-08,
+      "rtol": 1e-08
+    },
+    "bounded_fit_parameters_and_predictive_score": {
+      "atol": 2e-05,
+      "rtol": 2e-05
+    },
+    "direct_nuisance_parameters": {
+      "atol": 5e-06,
+      "rtol": 5e-06
+    },
+    "direct_nuisance_objective": {
+      "atol": 1e-09,
+      "rtol": 1e-09
+    }
+  },
+  "sha256": {
+    "observations.csv": "41cda497846452e6d086bc62e59488e49be359228b95b68769ee0f56835b4511",
+    "python_fit.csv": "50c621fe860d76bf3e14d69c61b0e4c14ade5c3e93410b9a466d1889e332be59",
+    "python_information.csv": "b9e193fff27c7eee762d10a605ef29cb98243259662665c7f76d7e9885e97ac0",
+    "python_profile.csv": "19a88f3226569bb54689c345018af57a8a2900cd847645a1c2e06528df964f83",
+    "python_transition.csv": "a8876236b7ace406832c7ce2e30e816f8c35a762bff4d0f57cd671bd3e699506"
+  }
+}

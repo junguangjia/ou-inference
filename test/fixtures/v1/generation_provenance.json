@@ -1,0 +1,7 @@
+{
+  "purpose": "Fixture generation source identities",
+  "sources": {
+    "scripts/build_reference_fixtures.py": "89f7359e04c29da5a09b94cb81754af8a8ea0b2ab37a1bd5e23343271c5d045b",
+    "reference/r/crosscheck_core.R": "54689f5745caee0315a9025fdb2e5f8aa11f6b93c33bc90018b55fdc197028b4"
+  }
+}

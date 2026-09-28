@@ -1,0 +1,18 @@
+{
+  "purpose": "DEVELOPMENT only; fixed horizon T=1, fixed X0=0, a=0, sigma=1",
+  "seed": 2026092802,
+  "reps_per_cell": 100,
+  "paths": 1600,
+  "elapsed_seconds": 4.832895750005264,
+  "nuisance_in_fitting": "unrestricted a; sigma2>0, analytically profiled",
+  "warnings": [
+    "chi-square LR is an explicitly uncalibrated comparator near boundary",
+    "bounded numerical fit is not certified global MLE",
+    "split universal inference is established prior art specialized to OU",
+    "truth membership evaluated directly, not rounded to a confidence-set grid",
+    "not a power comparison against the continuous-time grid bootstrap yet",
+    "no confidence-set widths or full endpoint certification implemented",
+    "equal innovation seeds do not imply nested continuous paths for changing grids",
+    "zero empirical rejections do not certify coverage or exact zero failure probability"
+  ]
+}

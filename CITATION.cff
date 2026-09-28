@@ -1,0 +1,17 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it and the statistical methods on which it builds."
+type: software
+title: "Finite-horizon inference for weak OU mean reversion"
+authors:
+  - family-names: Jia
+    given-names: Junguang
+version: 0.1.0
+date-released: 2026-09-28
+license: MIT
+repository-code: "https://github.com/junguangjia/ou-inference"
+abstract: "Exact OU likelihood, analytic nuisance profiling, and numerical checks for finite-horizon mean-reversion inference."
+keywords:
+  - Ornstein-Uhlenbeck
+  - finite-sample inference
+  - profile likelihood
+  - weak mean reversion
