@@ -1,0 +1,541 @@
+\documentclass[11pt]{article}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{amsmath,amssymb}
+\usepackage[margin=1in]{geometry}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage{pgfplots,pgfplotstable}
+\usepgfplotslibrary{groupplots}
+\usepackage[hidelinks]{hyperref}
+\pgfplotsset{compat=1.18}
+\definecolor{baseline}{HTML}{24557A}
+\definecolor{splitcolor}{HTML}{A3442B}
+\setlength{\parskip}{0.35em}
+\setlength{\parindent}{0pt}
+\emergencystretch=2em
+\newcommand{\E}{\mathbb E}
+\newcommand{\R}{\mathbb R}
+\newcommand{\KL}{\operatorname{KL}}
+\newcommand{\Var}{\operatorname{Var}}
+\newcommand{\D}{\mathrm d}
+\pgfplotsset{membership axis/.style={
+ width=0.44\textwidth,height=0.30\textwidth,
+ xmin=0.65,xmax=4.35,ymin=0.40,ymax=1.045,
+ xtick={1,2,3,4},xticklabels={0,0.1,1,4},ytick={0.4,0.6,0.8,1.0},
+ grid=major,grid style={gray!16},tick label style={font=\small},
+ label style={font=\small},title style={font=\small},
+ legend style={font=\scriptsize,draw=none,fill=white},legend cell align=left}}
+\pgfplotstableread{
+@@REGULAR64@@
+}\regularsmall
+\pgfplotstableread{
+@@REGULAR256@@
+}\regularlarge
+\pgfplotstableread{
+@@ALTERNATING64@@
+}\alternatingsmall
+\pgfplotstableread{
+@@ALTERNATING256@@
+}\alternatinglarge
+\newcommand{\membershipplot}[1]{%
+\addplot+[color=baseline,mark=*,mark size=1.5pt,error bars/.cd,y dir=both,y explicit]
+ table[x expr=\thisrow{index}-0.06,y=lr,y error minus=lrminus,y error plus=lrplus]{#1};
+\addplot+[color=splitcolor,mark=diamond*,mark size=1.8pt,error bars/.cd,y dir=both,y explicit]
+ table[x expr=\thisrow{index}+0.06,y=split,y error minus=splitminus,y error plus=splitplus]{#1};
+\addplot[gray,dashed,forget plot] coordinates {(0.65,0.95) (4.35,0.95)};
+}
+
+\title{Inference for Weak OU Mean Reversion:\\
+A Reproducible Finite-Horizon Study}
+\author{Junguang Jia}
+\date{}
+
+\begin{document}
+\maketitle
+
+\section*{Abstract}
+A short trajectory can provide little information about weak mean reversion,
+even when observations are frequent. This study examines that difficulty for a
+scalar Ornstein--Uhlenbeck process with unknown drift and diffusion scale,
+conditional on a fixed initial state. It derives the exact transition likelihood,
+profiles the nuisance parameters analytically, and implements a chronological
+split-profile confidence rule based on universal inference. A restricted
+continuous-path Kullback--Leibler calculation distinguishes an information limit
+from the behavior of a particular procedure. In a saved development experiment
+with 1,600 trajectories, the split rule has true-parameter membership between
+0.99 and 1.00 but excludes zero in at most 1\% of each cell. An uncalibrated
+chi-square likelihood-ratio diagnostic has membership between 0.57 and 0.91.
+The Julia implementation is checked against frozen Python and separately coded
+base-R references. The result is a reproducible technical and numerical study;
+it does not introduce a new inference method or establish certified confidence
+endpoints or a calibrated bootstrap comparison.
+
+\section{Introduction}
+For a persistent continuous-time process, a positive fitted mean-reversion
+coefficient does not by itself demonstrate that reversion is well identified.
+The relevant inferential questions include whether zero can be excluded,
+whether arbitrarily slow reversion remains plausible, and whether uncertainty
+has a finite upper endpoint. These questions become especially delicate when
+both the drift intercept and diffusion scale must be estimated from one finite
+observation window.
+
+This report studies
+\begin{equation}
+ \D X_t=(a-\kappa X_t)\,\D t+\sigma\,\D W_t,
+ \qquad a\in\R,\quad\kappa\geq0,\quad\sigma>0,
+ \label{eq:model}
+\end{equation}
+conditional on an observed, fixed $X_0=x_0$. Observation times are deterministic,
+or exogenous so that conditioning on the schedule preserves the stated
+transition law. At $\kappa=0$ the model is Brownian motion with drift $a$.
+For $\kappa>0$, the long-run mean is $\theta=a/\kappa$; it is not identified
+at zero. A bounded-$\theta$ restriction would force $a\to0$ as $\kappa\to0$
+and would therefore change the boundary experiment.
+
+Diffusion drift bias and persistent-process inference have substantial prior
+literature~\cite{tangchen,yu}. Hansen's grid bootstrap and its continuous-time
+extension by Lui, Xiao and Yu supply important comparison
+methods~\cite{hansen,lui}. The split-profile construction below is a
+specialization of universal inference~\cite{universal}. The present objective
+is to verify a boundary-aware implementation and expose limitations that a
+subsequent calibrated comparison must address. Migration to Julia is an
+implementation choice, not a methodological contribution.
+
+\section{Exact likelihood and inferential methods}
+\subsection{Transition law and nuisance profiling}
+Let $0=t_0<t_1<\cdots<t_n=T$ and $\Delta_i=t_i-t_{i-1}>0$. Solving the
+linear stochastic differential equation gives
+\begin{equation}
+ X_i\mid X_{i-1}\sim
+ N\!\left(\phi_iX_{i-1}+ab_i,\;\sigma^2v_i\right),
+ \quad
+ \phi_i=e^{-\kappa\Delta_i},\quad
+ b_i=\frac{1-e^{-\kappa\Delta_i}}{\kappa},\quad
+ v_i=\frac{1-e^{-2\kappa\Delta_i}}{2\kappa}.
+ \label{eq:transition}
+\end{equation}
+At zero, the continuous limits are exactly
+$\phi_i=1$ and $b_i=v_i=\Delta_i$. The implementation uses stable exponential
+expressions and an explicit zero branch, with no Euler approximation or
+positive lower bound on $\kappa$. There is no stationary initial density.
+
+For a candidate $\kappa$, write $r_i=x_i-\phi_i x_{i-1}$ and $s^2=\sigma^2$.
+The conditional log likelihood is
+\[
+ \ell(\kappa,a,s^2)=-\frac12\sum_{i=1}^n
+ \left\{\log(2\pi s^2v_i)+\frac{(r_i-ab_i)^2}{s^2v_i}\right\}.
+\]
+Weighted least squares and one-dimensional variance maximization yield
+\begin{align}
+ \widehat a_\kappa
+ &=\frac{\sum_i b_ir_i/v_i}{\sum_i b_i^2/v_i},&
+ R_\kappa&=\sum_i\frac{(r_i-\widehat a_\kappa b_i)^2}{v_i},
+ \label{eq:profile-estimates}\\
+ \widehat\sigma^2_\kappa&=\frac{R_\kappa}{n},&
+ \ell_p(\kappa)&=-\frac12\left[
+ n\{\log(2\pi\widehat\sigma^2_\kappa)+1\}+\sum_i\log v_i\right].
+ \label{eq:profile}
+\end{align}
+Indeed, the residual quadratic is
+$R_\kappa+(a-\widehat a_\kappa)^2\sum_i b_i^2/v_i$, with a strictly positive
+coefficient. When $R_\kappa>0$, differentiating the remaining likelihood in
+$s^2$ gives the maximum at $R_\kappa/n$. The divisor counts transitions; it is
+not the residual degrees-of-freedom divisor of an unbiased variance estimator.
+When $R_\kappa=0$, the likelihood supremum is infinite as $s^2\downarrow0$.
+This degeneracy is retained rather than replaced by a variance floor.
+
+The numerical fit evaluates zero and a positive logarithmic grid up to $200/T$, then refines
+local candidates by a bounded scalar search. This is not a certified global
+maximum. As $\kappa\to\infty$, the profiled likelihood tends to the free-mean,
+free-variance iid Gaussian likelihood of $x_1,\ldots,x_n$. To see this,
+reparameterize $a=\kappa\beta$ and $\sigma^2=2\kappa\tau^2$ in
+\eqref{eq:transition}; the means tend to $\beta$ and variances to $\tau^2$.
+The explicit weighted least-squares profiles converge to the successor sample
+mean and variance, giving convergence of the profiled likelihood as well.
+If the observed successor states are all equal, the limiting supremum is
+infinite. Cap contact and comparison with this tail limit are reported as
+warnings. A search cap is never interpreted as a confidence endpoint.
+
+\subsection{An explicitly uncalibrated likelihood-ratio diagnostic}
+Let $\widetilde\ell_{\max}$ denote the best value returned by the bounded
+search. The diagnostic statistic is
+\[
+ D(\kappa)=2\{\widetilde\ell_{\max}-\ell_p(\kappa)\}.
+\]
+The development comparison accepts a candidate when
+$D(\kappa)\leq\chi^2_{1,0.95}=3.84145882$. This cutoff is retained to examine
+its behavior; it is not justified here by Wilks' theorem. Neither an ordinary
+chi-square limit nor a simple boundary mixture is assumed reliable in the
+fixed-span, weak-reversion regime. Approximate global optimization is an
+additional numerical limitation of this diagnostic.
+
+\subsection{Chronological split-profile rule}
+Choose a fixed split after $m$ transitions. Fit an OU density on the prefix
+$X_0,\ldots,X_m$, freeze its parameters, and evaluate the remaining transition
+product $q(X_{m+1:n}\mid\mathcal F_m)$, where
+$\mathcal F_m=\sigma(X_0,\ldots,X_m)$ with the schedule conditioned on.
+For each realized prefix, $q$ must be a normalized conditional density. Define
+\begin{equation}
+ E_\kappa=
+ \frac{q(X_{m+1:n}\mid\mathcal F_m)}
+ {\sup_{a\in\R,\,\sigma>0}
+ p_{\kappa,a,\sigma}(X_{m+1:n}\mid X_m)},
+ \qquad
+ C_\alpha=\{\kappa\geq0:E_\kappa\leq1/\alpha\}.
+ \label{eq:evalue}
+\end{equation}
+The denominator is the analytic nuisance supremum on the suffix. At the true
+parameters $(\kappa_0,a_0,\sigma_0)$, conditional-density domination gives
+\[
+ \E_{\kappa_0,a_0,\sigma_0}[E_{\kappa_0}\mid\mathcal F_m]
+ \leq\int q(y\mid\mathcal F_m)\,\D y=1.
+\]
+Markov's inequality therefore implies
+$P_{\kappa_0,a_0,\sigma_0}(\kappa_0\in C_\alpha)\geq1-\alpha$.
+Conditioning on $X_m$ handles prefix/suffix dependence; independence of the two
+segments is not required. Approximate prefix fitting preserves this argument
+when it still produces a normalized positive-variance density. An underestimated
+denominator, future-informed fitting, or an unreported training failure does
+not inherit the guarantee.
+
+This is the conditional/profile-likelihood principle of universal
+inference~\cite{universal}. Its mathematical guarantee concerns the exact model
+and exact nuisance supremum. Floating-point agreement is not a certificate that
+every computed denominator is a conservative upper bound. The rule is
+fixed-horizon and model-based, not a confidence sequence, prediction interval,
+or distribution-free guarantee.
+
+\section{Information limitations over a finite horizon}
+\subsection{Dimensionless parameters}
+Brownian scaling of $U_s=(X_{Ts}-x_0)/(\sigma\sqrt T)$ gives
+\[
+ \D U_s=(\delta-cU_s)\,\D s+\D B_s,
+ \qquad c=\kappa T,\qquad
+ \delta=\frac{(a-\kappa x_0)\sqrt T}{\sigma}.
+\]
+Thus $c$ measures reversion relative to the observation span, but does not
+by itself determine every experiment: $\delta$ and the normalized schedule
+also matter. Increasing $n$ at fixed $T$ is an infill experiment; increasing
+$T$ at a fixed observation step is a different information change.
+
+\subsection{A restricted pathwise KL calculation}
+For this subsection only, assume $a=0$, $x_0=0$, and the same known $\sigma$
+under both laws. Let $P_\kappa$ and $P_0$ denote continuous-path laws on $[0,T]$
+for OU and driftless Brownian motion. Under $P_0$, $X_t=\sigma W_t$. It\^o's
+formula expresses the candidate likelihood ratio as
+\[
+ L_t=\exp\left\{-\frac\kappa\sigma\int_0^tX_s\,\D W_s
+ -\frac{\kappa^2}{2\sigma^2}\int_0^tX_s^2\,\D s\right\}
+ =\exp\left\{\frac{\kappa t}{2}-\frac{\kappa X_t^2}{2\sigma^2}
+ -\frac{\kappa^2}{2\sigma^2}\int_0^tX_s^2\,\D s\right\}.
+\]
+For $\kappa\geq0$, this positive local martingale is bounded by
+$e^{\kappa T/2}$ on the finite horizon. Localization and dominated convergence
+make it a true martingale. Girsanov's theorem then identifies
+$L_T=\D P_\kappa/\D P_0$. Under $P_\kappa$, write
+\[
+ \log L_T=-\frac\kappa\sigma\int_0^T X_t\,\D W_t^{(\kappa)}
+ +\frac{\kappa^2}{2\sigma^2}\int_0^T X_t^2\,\D t,
+\]
+where $W^{(\kappa)}$ is Brownian motion under $P_\kappa$. Its stochastic
+integral has finite second moment and hence mean zero under this measure. Using
+$\E_\kappa X_t^2=\sigma^2(1-e^{-2\kappa t})/(2\kappa)$ gives
+\begin{align}
+ \KL(P_\kappa\Vert P_0)
+ &=\frac{\kappa^2}{2\sigma^2}\int_0^T\E_\kappa X_t^2\,\D t\\
+ &=\frac c4-\frac{1-e^{-2c}}8
+ =\frac{c^2}{4}-\frac{c^3}{6}+O(c^4).
+ \label{eq:kl}
+\end{align}
+The identity is continuous at $c=0$.
+
+For discrete observations, the Gaussian chain rule gives
+\begin{equation}
+ \KL(P_\kappa^{\rm obs}\Vert P_0^{\rm obs})
+ =\frac12\sum_i\left\{
+ \frac{v_i}{\Delta_i}-1-\log\frac{v_i}{\Delta_i}
+ +\frac{(\phi_i-1)^2 V_{i-1}}{\Delta_i}\right\},
+ \quad
+ V_{i-1}=\frac{1-e^{-2\kappa t_{i-1}}}{2\kappa}.
+ \label{eq:sample-kl}
+\end{equation}
+At $\kappa=0$, take $V_{i-1}=t_{i-1}$ by continuity.
+Sampling is a measurable function of the full path. Data processing therefore
+bounds sampled KL by path KL and implies monotonicity for nested refinement.
+Any test of the restricted Brownian null with size at most $\alpha$ has power
+bounded by
+\begin{equation}
+ \operatorname{Power}\leq
+ \min\left\{1,\alpha+\sqrt{\KL(P_\kappa\Vert P_0)/2}\right\}.
+ \label{eq:pinsker}
+\end{equation}
+This follows from total variation and Pinsker's inequality. At $c=0.1$,
+path KL is approximately $0.0023413441$, so the level-$0.05$ power bound is
+$0.0842151$. Arbitrarily dense sampling cannot exceed the full-path information
+in this restricted experiment. The bound is loose and need not be attainable;
+it is not a power curve for the unknown-nuisance split rule. A difference between
+that rule's power and this envelope does not identify the cost of splitting.
+
+\begin{table}[!htbp]
+\centering\small
+\caption{Restricted information calculation with $a=x_0=0$ and known $\sigma$.
+Discrete KL uses eight equal gaps; the final column is the continuous-path
+level-$0.05$ power upper bound. These are deterministic values, not simulations.}
+\label{tab:information}
+\begin{tabular}{rrrr}
+\toprule
+$c$ & Sampled KL ($n=8$) & Path KL & Power upper bound\\
+\midrule
+@@INFORMATION_TABLE@@
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Development experimental design}
+The main empirical results use a saved Julia development pilot with
+$T=1$, $a=x_0=0$, $\sigma=1$, $\kappa\in\{0,0.1,1,4\}$, and
+$n\in\{64,256\}$ transitions. Regular gaps are $1/n$. The deterministic
+alternating schedule repeats $0.25/n$ and $1.75/n$, preserving the same $T$
+and $n$. This gives 16 cells, each with $R=100$ independently simulated
+trajectories, for 1,600 trajectories in total. Both $a$ and $\sigma$ are
+unknown to the inference procedures, even though their generating values are
+fixed. The split is $m=n/2$ and $\alpha=0.05$.
+
+Exact transition simulation uses a fresh Julia Xoshiro generator for each
+trajectory. The base seed is $2026092803$; the stored seed equals this value
+plus the trajectory index in the declared loop order. Different resolutions
+and schedules use different paths. These comparisons are therefore not paired
+nested-path infill experiments. A future infill design must derive coarse
+observations from a common exact fine trajectory; longer-span comparisons
+should use common path prefixes.
+
+For each trajectory, the pilot evaluates true-parameter membership and exclusion
+of zero directly from the two statistics. It does not construct full confidence
+sets or measure their widths. With $I_r$ the relevant binary outcome,
+$\widehat p=R^{-1}\sum_r I_r$ and the reported plug-in Monte Carlo standard
+error is $\sqrt{\widehat p(1-\widehat p)/R}$. The uncertainty unit is one
+independent trajectory, not an observation within a trajectory. Pointwise 95\%
+Wilson intervals are also reported, including at zero or one observed rates;
+these describe simulation uncertainty, not parameter confidence sets for $\kappa$.
+
+All attempted trajectories remain in denominators. If $S$ observed successes and
+$F$ unresolved trajectories occur in $R$ attempts, the empirical success fraction
+is bounded by $[S/R,(S+F)/R]$, with failures reported separately. The saved Julia
+pilot has zero failed trajectories and no recorded cap, tail, optimizer or
+numerical warnings. This does not certify global optimization. The entire pilot
+is exploratory development evidence, with no locked confirmation design or
+method selection justified by these results.
+
+\section{Results and numerical verification}
+\subsection{Coverage alone does not establish informativeness}
+Table~\ref{tab:results} reports the regular $n=256$ cells; Figure~\ref{fig:membership}
+shows true-parameter membership in all 16 cells. The chi-square LR diagnostic
+has membership between $0.57$ and $0.91$, whereas split-profile membership is
+between $0.99$ and $1.00$. At the four $\kappa=0$ cells, the LR diagnostic falsely
+excludes zero in 28\%, 43\%, 30\% and 34\% of trajectories (regular $n=64,256$,
+then alternating $n=64,256$). This is strong evidence of poor calibration for
+that particular cutoff in the tested development settings; it does not show
+that all likelihood-based inference fails.
+
+\begin{table}[!htbp]
+\centering\small
+\caption{Selected Julia development results: regular schedule, $n=256$ and
+100 trajectories per row. Membership is at the true $\kappa$; zero exclusion
+is a false rejection at $\kappa=0$ and empirical power otherwise. LR uses an
+uncalibrated cutoff. Fitted $\kappa$ values use bounded numerical search.}
+\label{tab:results}
+\begin{tabular}{rrrrrr}
+\toprule
+ & & \multicolumn{2}{c}{Truth membership} & \multicolumn{2}{c}{Zero exclusion}\\
+\cmidrule(lr){3-4}\cmidrule(lr){5-6}
+$\kappa$ & Mean $\widehat\kappa$ & LR & Split & LR & Split\\
+\midrule
+@@RESULTS_TABLE@@
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[!ht]
+\centering
+\begin{tikzpicture}
+\begin{groupplot}[membership axis,group style={group size=2 by 2,horizontal sep=0.8cm,vertical sep=1.1cm}]
+\nextgroupplot[title={Regular, $n=64$},ylabel={Truth membership},legend pos=south east]
+\membershipplot{\regularsmall}
+\legend{LR diagnostic,Split profile}
+\nextgroupplot[title={Regular, $n=256$}]
+\membershipplot{\regularlarge}
+\nextgroupplot[title={Alternating, $n=64$},xlabel={True $\kappa T$},ylabel={Truth membership}]
+\membershipplot{\alternatingsmall}
+\nextgroupplot[title={Alternating, $n=256$},xlabel={True $\kappa T$}]
+\membershipplot{\alternatinglarge}
+\end{groupplot}
+\end{tikzpicture}
+\caption{True-parameter membership in the Julia development pilot. Bars are
+pointwise 95\% Wilson intervals from 100 independent trajectories per cell;
+the dashed line is 0.95. Horizontal positions are categorical, slightly offset
+for legibility; connecting segments guide the eye and do not interpolate power.
+Blue circles show the uncalibrated LR diagnostic; rust diamonds show split profile.}
+\label{fig:membership}
+\end{figure}
+
+The split rule excludes zero in at most one of the 100 trajectories in any cell,
+including at $c=4$. No exclusions in a cell give the Wilson interval
+$[0,0.03699]$; 100 memberships give $[0.96301,1]$. Neither zero estimated MCSE
+at these extremes nor very high membership certifies exact empirical risk.
+The inability to exclude zero is a substantive negative informativeness result.
+It motivates separating intrinsic weak information, nuisance estimation and
+chronological splitting, rather than treating near-perfect membership as success.
+
+The earlier frozen Python development pilot independently showed the same
+qualitative pattern: LR membership $0.63$--$0.88$, split membership $0.99$--$1$,
+and split zero exclusion $0$--$0.01$. Its seed family and language RNG differ;
+these are separate development runs, not paired trajectories or identical
+stochastic replications. Their rates are not pooled. The smaller 32-trajectory
+Julia smoke run validates the pipeline and is not the empirical study reported
+in Table~\ref{tab:results}.
+
+\subsection{Cross-language and numerical checks}
+The recorded Julia suite passes 2,468 assertions, including 2,236 deterministic
+scalar comparisons with frozen Python and independently coded base R. These
+counts are numerical checks, not independent Monte Carlo replications. The
+comparisons cover transition coefficients, conditional means and variances,
+likelihood, profiled nuisance estimates, selected LR statistics, and information
+calculations. Explicit innovations fix cross-language simulation paths.
+Fourteen further assertions in the suite use 256-bit calculations to check
+difficult small-KL cases with
+relative tolerance $10^{-12}$ and zero absolute tolerance.
+
+The largest absolute discrepancy in closed-form comparisons is
+$3.553\times10^{-14}$. Bounded objective/LR comparisons differ by at most
+$3.242\times10^{-14}$; bounded parameters and predictive/split scores differ by
+at most $4.057\times10^{-6}$, within their predeclared $2\times10^{-5}$ absolute
+and relative tolerances. Different scalar optimizers explain why a predictive
+score can be more sensitive than the optimized training likelihood. The ten
+independent R nuisance optimizations agree in objective to
+$6.359\times10^{-13}$. Tolerances were not enlarged after observing failures.
+
+Independent checking found cancellation in the original sampled-KL computation:
+forming $u=v_i/\Delta_i-1$ loses its first-order term for tiny
+$z=\kappa\Delta_i$. Julia instead evaluates
+\[
+ u=-z+\frac23z^2-\frac13z^3+\frac{2}{15}z^4+O(z^5)
+\]
+directly in the small-argument regime and evaluates $u-\log(1+u)$ stably.
+For $\kappa=10^{-16}$, $T=1$ and one transition, the old expression gives about
+$3.0815\times10^{-33}$, exceeding the path KL of about $2.5\times10^{-33}$.
+The corrected calculation gives about $2.5\times10^{-33}$. The frozen references
+remain unchanged, and the discrepancy is documented. Even at the fixture value
+$\kappa=10^{-10}$, the old cancellation causes about $5.1\times10^{-7}$ relative
+error in a KL of order $10^{-20}$; absolute tolerance alone would conceal it.
+The separate high-precision checks address that issue. This repair is numerical,
+not a new statistical result.
+
+Other tests cover Brownian limits, transition aggregation, affine state and time
+rescaling, explicit RNG reproducibility, prefix-only fitting, degeneracy and
+failure reporting. Simulator moment checks use 12,000 independent short paths
+in each of six cells, with six-standard-error thresholds. Those 72,000 paths
+check the simulator; they are not an additional inferential coverage study.
+
+\section{Limitations and next research step}
+The empirical design fixes zero drift, zero initial state, unit scale and unit
+horizon. It therefore does not establish performance over a nuisance grid,
+under longer spans, under endogenous sampling, or with observation noise.
+Different $n$ values are not paired on nested paths. One hundred trajectories
+per cell permit only limited Monte Carlo precision, and the results are not
+locked confirmation evidence.
+
+The study has no faithfully reproduced grid-bootstrap baseline. A comparison
+must first specify the paper version, null-imposed nuisance fitting,
+initialization, resampling law and inversion statistic~\cite{hansen,lui}.
+The known-long-run-mean and $\kappa(\mu-X_t)$ parameterizations in relevant
+literature must not be silently identified with unrestricted $a$ at
+$\kappa=0$. An ordinary plug-in bootstrap is not automatically finite-sample
+exact. The version-specific overlap and remaining full-text access gaps are
+recorded in the literature documentation; no novelty conclusion is inferred
+from an incomplete search.
+
+Full inversion is also unfinished. The set in \eqref{eq:evalue} need not be a
+single finite interval: zero, disconnected components, unbounded tails and
+numerical nonresolution must all remain possible. A finite accepted grid is
+not a certified continuum set. For any set $C$, half-life uncertainty is
+\[
+ H(C)=\{\log(2)/\kappa:\kappa\in C,\ \kappa>0\}
+ \cup\{+\infty:0\in C\}.
+\]
+Thus accepting zero retains infinite half-life; a positive unbounded component
+approaches half-life zero without attaining it. Numerical tail and crossing
+certification is required before reporting finite endpoints or widths.
+
+The next step is a faithful grid-bootstrap reproduction followed by confidence-set
+geometry, common-path infill and longer-span comparisons, and a sensitivity
+design in $(c,\delta,\text{schedule})$. The current derivations are elementary
+specializations of established theory; numerical agreement and exploratory
+findings are separate evidence. No new method, efficiency theorem or superiority
+claim is established by this report.
+
+\section{Reproducibility}
+The repository provides Julia source, a locked project environment, numerical
+tests, deterministic reference fixtures and saved development outputs. The report's
+tables and plots are generated from those outputs and embedded in this standalone
+\LaTeX\ file. It compiles without external figures, data files or bibliography
+files. Julia is canonical; Python is a frozen numerical reference and base R
+supplies selected independent checks. The public tests use saved synthetic
+fixtures and require no Python installation.
+
+\textbf{Run record.} Julia 1.12.5, one Julia thread and one BLAS thread;
+100 independent trajectories in each of 16 cells; Xoshiro base seed $2026092803$.
+The saved development run is
+\begin{center}\small\texttt{@@RUN_ID@@}.\end{center}
+Its recorded implementation and environment hashes match the initial source
+release \texttt{d08dc35}. The run itself preceded that commit and records its
+Git status as uncommitted; the match is established by the saved content hashes.
+The 32-path smoke, 1,600-path Python pilot and simulator moment checks have
+separate records and purposes.
+
+The README gives installation and execution commands. To regenerate this report's
+source from its preserved inputs, run
+\begin{center}\small\verb|julia --startup-file=no --project=. scripts/build_report.jl|\end{center}
+The report manifest records the template, builder, data and source identities.
+New runs create unique output directories; they do not overwrite archived results.
+\begin{samepage}
+The following SHA-256 fingerprints the declared data and implementation inputs,
+not elapsed-time reproducibility or the finished PDF:
+\begin{center}\footnotesize\texttt{@@SOURCE_DIGEST@@}\end{center}
+\end{samepage}
+
+\begin{thebibliography}{9}
+\bibitem{tangchen}
+C. Y. Tang and S. X. Chen.
+Parameter estimation and bias correction for diffusion processes.
+\emph{Journal of Econometrics}, 149(1):65--81, 2009.
+\href{https://doi.org/10.1016/j.jeconom.2008.11.001}{doi:10.1016/j.jeconom.2008.11.001}.
+
+\bibitem{yu}
+J. Yu.
+Bias in the estimation of the mean reversion parameter in continuous time models.
+\emph{Journal of Econometrics}, 169(1):114--122, 2012.
+\href{https://doi.org/10.1016/j.jeconom.2012.01.004}{doi:10.1016/j.jeconom.2012.01.004}.
+
+\bibitem{hansen}
+B. E. Hansen.
+The grid bootstrap and the autoregressive model.
+\emph{Review of Economics and Statistics}, 81(4):594--607, 1999.
+\href{https://doi.org/10.1162/003465399558463}{doi:10.1162/003465399558463}.
+
+\bibitem{lui}
+Y. L. Lui, W. Xiao, and J. Yu.
+The grid bootstrap for continuous time models.
+\emph{Journal of Business \& Economic Statistics}, 40(3):1390--1402, 2022.
+\href{https://doi.org/10.1080/07350015.2021.1930014}{doi:10.1080/07350015.2021.1930014}.
+
+\bibitem{universal}
+L. Wasserman, A. Ramdas, and S. Balakrishnan.
+Universal inference.
+\emph{Proceedings of the National Academy of Sciences}, 117(29):16880--16890, 2020.
+\href{https://doi.org/10.1073/pnas.1922664117}{doi:10.1073/pnas.1922664117}.
+The conditional/profile discussion was checked in
+\href{https://arxiv.org/abs/1912.11436v4}{arXiv:1912.11436v4} (2022 revision).
+\end{thebibliography}
+\end{document}

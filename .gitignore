@@ -19,3 +19,9 @@ tmp/
 results/*
 !results/reviewed/
 results/raw/
+
+latex/*.aux
+latex/*.fdb_latexmk
+latex/*.fls
+latex/*.out
+latex/*.synctex.gz

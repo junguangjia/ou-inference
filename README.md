@@ -1,5 +1,8 @@
 # Finite-horizon inference for weak OU mean reversion
 
+[Read the report](latex/ou-inference-report.pdf) ·
+[LaTeX source](latex/ou-inference-report.tex)
+
 How informative can confidence sets for mean reversion be from one finite
 observation window when drift and diffusion scale are unknown? This repository
 provides a Julia implementation and numerical verification of an exact scalar
@@ -60,6 +63,25 @@ julia --startup-file=no --project=. scripts/run.jl pilot --reps 100
 
 This remains DEVELOPMENT evidence. Never relabel its seeds as confirmation.
 
+### Report
+
+The report presents the likelihood and conditional split-profile argument,
+restricted information bounds, and the saved 1,600-trajectory Julia development
+experiment. Tables and plots are generated from the reviewed snapshot in
+`results/reviewed/julia-development/`; no new simulation is needed to rebuild them.
+
+```sh
+julia --startup-file=no --project=. scripts/build_report.jl
+latexmk -pdf -outdir=latex latex/ou-inference-report.tex
+```
+
+The first command validates the saved experiment and regenerates the standalone
+source and its SHA-256 manifest. PDF compilation requires a LaTeX installation
+with Latin Modern, PGF/TikZ and PGFPlots. Plot data and references are embedded
+in the generated source; it has no external figure or bibliography dependency.
+Edit `latex/report-template.tex`, then rerun the builder. The compiled PDF is
+included for readers who do not need to rebuild it.
+
 ## Experiments and interpretation
 
 The compact smoke experiment uses 32 independent trajectories in 16 cells:
@@ -76,8 +98,11 @@ motion is approximately 0.0023413441 and Pinsker gives a level-0.05 power upper
 bound of approximately 0.0842151. Discrete observation cannot increase KL.
 These elementary calculations are not asserted to be novel.
 
-The earlier development pilot found severe conservativeness of the single-split
-rule and poor truth membership for the uncalibrated LR diagnostic. Negative
+The saved Julia development pilot uses 100 trajectories per cell (1,600 total).
+Truth membership ranges from 0.57 to 0.91 for the LR diagnostic and from 0.99 to
+1.00 for split profile; split profile excludes zero in at most 1% of any cell.
+The earlier frozen Python pilot showed the same qualitative pattern. These
+separate development runs are not pooled or treated as confirmation. Negative
 findings and their scope are retained in `docs/findings.md`; high coverage alone
 does not imply informative inference.
 
@@ -85,10 +110,11 @@ does not imply informative inference.
 
 - `src/`: exact model, likelihood, profiling, simulation, inference and information.
 - `test/`: Julia tests and deterministic reference fixtures.
-- `scripts/`: bounded development runner and numerical crosscheck.
+- `scripts/`: bounded development runner, numerical crosscheck and report builder.
 - `reference/r/`: small independent base-R checks.
 - `docs/`: theory, methodology, protocol, findings and literature context.
 - `results/`: compact reviewed outputs; new raw runs are ignored by Git.
+- `latex/`: report template, generated source, provenance manifest and PDF.
 
 The next milestone is faithful grid-bootstrap replication, followed by confidence
 set geometry and paired fixed-span versus longer-span experiments. Unresolved
